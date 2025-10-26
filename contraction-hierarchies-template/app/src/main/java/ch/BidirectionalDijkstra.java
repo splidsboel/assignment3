@@ -4,36 +4,39 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.PriorityQueue;
 
+/**
+ * left is source and right is target
+ */
 public class BidirectionalDijkstra {
+    
+    public static int shortestPath(Graph g, long s, long t){
+        PriorityQueue<PQElem> ql = new PriorityQueue<>(); //forward search pq
+        PriorityQueue<PQElem> qr = new PriorityQueue<>(); //backwards search pq
+        
+        HashSet<Long> settled = new HashSet<>(); //vertices whose distances won't improve
+        
+        int d = Integer.MAX_VALUE; //shortest distance between s and t
+        
+        // current best distance estimates in each direction (updated continually)
+        HashMap<Long, Integer> dl = new HashMap<>(); //maps a vertex to its tentative distance from left
+        HashMap<Long, Integer> dr = new HashMap<>(); //same but for right
 
-    private Graph g;
-    private PriorityQueue<PQElem> ql = new PriorityQueue<>();
-    private PriorityQueue<PQElem> qr = new PriorityQueue<>();
-
-    private HashSet<Long> settled = new HashSet<>();
-    private int d = Integer.MAX_VALUE;
-
-    private HashMap<Long, Integer> dl = new HashMap<>();
-    private HashMap<Long, Integer> dr = new HashMap<>();
-
-    public BidirectionalDijkstra(Graph g, long s, long t){
-        this.g = g;
+        
         dl.put(s, 0);
         dr.put(t, 0);
-
         ql.add(new PQElem(0, s));
-
         qr.add(new PQElem(0, t));
-    }
-    
-    public int search(){
+
+
         while ((!ql.isEmpty()) || (!qr.isEmpty())) {
             PQElem left = ql.peek();
             PQElem right = qr.peek();
 
-            PriorityQueue<PQElem> qi; //reference to the appropriate set depending on direction
+            PriorityQueue<PQElem> qi; //reference to the appropriate queue depending on direction
             HashMap<Long, Integer> di; //reference to the appropriate map depending on direction
 
+
+            //decide which direction to go from
             if (!ql.isEmpty() && left.key <= right.key) {
                 qi = ql;
                 di = dl;
@@ -42,15 +45,18 @@ public class BidirectionalDijkstra {
                 di = dr;
             }
 
+
             PQElem min = qi.poll();
             long u = min.v;
             int distU = min.key;
 
             if (settled.contains(u)) {
-                break; //if this happens the two serches have met and we stop
+                break; //if this happens, the two searches have met and we stop
             }
             settled.add(u);
 
+
+            //relaxation step
             for (Graph.Edge e : g.getNeighbours(u)){
                 long v = e.to;
                 int weight = e.weight;
