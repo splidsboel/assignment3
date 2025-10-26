@@ -55,5 +55,5 @@ public class BidirectionalDijkstraTest {
     public void testShortestPath_sameNode() {
         int dist = BidirectionalDijkstra.shortestPath(g, 1, 1);
         assertEquals("Distance from a node to itself should be 0", 0, (long) dist);
-}
+    }
 }
