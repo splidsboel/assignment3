@@ -2,7 +2,10 @@ package ch;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.PriorityQueue;
+
+import ch.Graph.Edge;
 
 /**
  * left is source and right is target
@@ -10,6 +13,9 @@ import java.util.PriorityQueue;
 public class BidirectionalDijkstra {
     
     public static int shortestPath(Graph g, long s, long t){
+        if (s==t) {
+            return 0;
+        }
         PriorityQueue<PQElem> ql = new PriorityQueue<>(); //forward search pq
         PriorityQueue<PQElem> qr = new PriorityQueue<>(); //backwards search pq
         
@@ -37,13 +43,17 @@ public class BidirectionalDijkstra {
 
 
             //decide which direction to go from
-            if (!ql.isEmpty() && left.key <= right.key) {
-                qi = ql;
-                di = dl;
-            }else{
-                qi = qr;
-                di = dr;
+            boolean useLeft;
+            if (qr.isEmpty()) {
+                useLeft = true;
+            } else if (ql.isEmpty()) {
+                useLeft = false;
+            } else {
+                useLeft = ql.peek().key <= qr.peek().key;
             }
+
+            qi = useLeft ? ql : qr;
+            di = useLeft ? dl : dr;
 
 
             PQElem min = qi.poll();
@@ -54,8 +64,11 @@ public class BidirectionalDijkstra {
                 break; //if this happens, the two searches have met and we stop
             }
             settled.add(u);
+            List<Edge> neighbours = g.getNeighbours(u);
 
-
+            if (neighbours==null || neighbours.isEmpty()) {
+                continue;
+            }
             //relaxation step
             for (Graph.Edge e : g.getNeighbours(u)){
                 long v = e.to;
@@ -73,6 +86,9 @@ public class BidirectionalDijkstra {
                     d = Math.min(d, dl.get(v) + dr.get(v));
                 }
             }
+        }
+        if (d==Integer.MAX_VALUE) {
+            d=-1;
         }
         return d;
     }
