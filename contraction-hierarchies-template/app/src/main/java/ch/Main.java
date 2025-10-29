@@ -42,5 +42,6 @@ class Main {
         var graph = readGraph(sc);
         sc.close();
         System.out.println(graph.n + " " + graph.m);
+        System.out.println("Shortest path from 4 to 5 in test.graph is: " + BidirectionalDijkstra.shortestPath(graph, 4, 5));
     }
 }
