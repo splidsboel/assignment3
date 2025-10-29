@@ -12,9 +12,13 @@ import ch.Graph.Edge;
  */
 public class BidirectionalDijkstra {
     
-    public static int shortestPath(Graph g, long s, long t){
+    public static Result<Integer> shortestPath(Graph g, long s, long t){
+        long start = System.nanoTime();
+        int relaxed = 0;
+
         if (s==t) {
-            return 0;
+            long end = System.nanoTime();
+            return new Result<Integer>(end-start, 0, 0);
         }
         PriorityQueue<PQElem> ql = new PriorityQueue<>(); //forward search pq
         PriorityQueue<PQElem> qr = new PriorityQueue<>(); //backwards search pq
@@ -71,6 +75,7 @@ public class BidirectionalDijkstra {
             }
             //relaxation step
             for (Graph.Edge e : g.getNeighbours(u)){
+                relaxed++;
                 long v = e.to;
                 int weight = e.weight;
 
@@ -90,6 +95,7 @@ public class BidirectionalDijkstra {
         if (d==Integer.MAX_VALUE) {
             d=-1;
         }
-        return d;
+        long end = System.nanoTime();
+        return new Result<Integer>(end-start, relaxed, d);
     }
 }
