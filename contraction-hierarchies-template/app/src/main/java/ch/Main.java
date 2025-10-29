@@ -40,8 +40,13 @@ class Main {
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
         var graph = readGraph(sc);
+        ContractionHierachy ch = new ContractionHierachy(graph);
+        ch.storeGraph(java.nio.file.Path.of("denmark-augmented.graph"));
         sc.close();
         System.out.println(graph.n + " " + graph.m);
-        System.out.println("Shortest path from 4 to 5 in test.graph is: " + BidirectionalDijkstra.shortestPath(graph, 4, 5));
+        Result<Integer> result = BidirectionalDijkstra.shortestPath(graph, 4, 5);
+        // System.out.println("Shortest path from 4 to 5 in test.graph is: " + result.result);
+        // System.out.println("Relaxed edges: " + result.relaxed);
+        System.out.println("Computation time (ns): " + result.time);
     }
 }

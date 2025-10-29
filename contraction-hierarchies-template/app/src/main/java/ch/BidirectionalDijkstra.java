@@ -11,10 +11,11 @@ import ch.Graph.Edge;
  * left is source and right is target
  */
 public class BidirectionalDijkstra {
-    
-    public static int shortestPath(Graph g, long s, long t){
+
+    public static Result<Integer> shortestPath(Graph g, long s, long t){
+        long start = System.nanoTime();
         if (s==t) {
-            return 0;
+            return new Result<>(System.nanoTime() - start, 0, 0);
         }
         PriorityQueue<PQElem> ql = new PriorityQueue<>(); //forward search pq
         PriorityQueue<PQElem> qr = new PriorityQueue<>(); //backwards search pq
@@ -26,6 +27,7 @@ public class BidirectionalDijkstra {
         // current best distance estimates in each direction (updated continually)
         HashMap<Long, Integer> dl = new HashMap<>(); //maps a vertex to its tentative distance from left
         HashMap<Long, Integer> dr = new HashMap<>(); //same but for right
+        int relaxed = 0;
 
         
         dl.put(s, 0);
@@ -70,7 +72,8 @@ public class BidirectionalDijkstra {
                 continue;
             }
             //relaxation step
-            for (Graph.Edge e : g.getNeighbours(u)){
+            for (Graph.Edge e : neighbours){
+                relaxed++;
                 long v = e.to;
                 int weight = e.weight;
 
@@ -90,6 +93,7 @@ public class BidirectionalDijkstra {
         if (d==Integer.MAX_VALUE) {
             d=-1;
         }
-        return d;
+        long end = System.nanoTime();
+        return new Result<>(end - start, relaxed, d);
     }
 }
