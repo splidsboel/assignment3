@@ -3,7 +3,7 @@ from typing import List, Tuple
 import numpy as np
 
 
-def input_generator(seed: int, n: int = 1000) -> List[Tuple[int, int]]:
+def input_generator(seed: int = 3145, n: int = 1000) -> List[Tuple[int, int]]:
     """Generate ```n``` random s,t pairs from denmark.graph. Right now we allow duplicates. Maybe we should, maybe not"""
     
     # 115724 to 5423454068
