@@ -1,3 +1,8 @@
+"""
+Python script to run experiments on both regular Dijkstra and bi-directional dijkstra. Outputs to .csv files.
+Example run: python dijkstra_analysis.py --classpath app/build/libs/app.jar --graph denmark.graph --pairs 1000 --output results
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -113,7 +118,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument(
         "--classpath",
         required=True,
-        help="Classpath containing compiled ch.Main (e.g. app/build/classes/java/main)",
+        help="Classpath containing compiled ch.Main or .jar file (e.g. app/build/libs/app.jar)",
     )
     parser.add_argument(
         "--graph",
