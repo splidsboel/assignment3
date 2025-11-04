@@ -1,8 +1,14 @@
 package ch;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Scanner;
 
 class Main {
+
+    private static final String ALG_DIJKSTRA = "dijkstra";
+    private static final String ALG_BIDIRECTIONAL = "bidirectional";
 
     private static Graph readGraph(Scanner sc) {
         int n = sc.nextInt();
@@ -12,12 +18,9 @@ class Main {
 
         long id;
         float x, y;
-        long[] ids = new long[n];
 
         for (int i = 0; i < n; i++) {
             id = sc.nextLong();
-
-            ids[i] = id;
             x = Float.parseFloat(sc.next());
             y = Float.parseFloat(sc.next());
 
@@ -37,11 +40,77 @@ class Main {
         return g;
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        if (args.length != 1) {
+            printUsage();
+            return;
+        }
+
+        String algorithm = args[0];
+
+        if (!ALG_DIJKSTRA.equals(algorithm) && !ALG_BIDIRECTIONAL.equals(algorithm)) {
+            System.err.println("Unknown algorithm: " + algorithm);
+            printUsage();
+            return;
+        }
+
         Scanner sc = new Scanner(System.in);
-        var graph = readGraph(sc);
+
+        if (!sc.hasNextInt()) {
+            System.err.println("Input missing graph size header.");
+            sc.close();
+            return;
+        }
+
+        Graph graph = readGraph(sc);
+
+        if (!sc.hasNextInt()) {
+            System.err.println("Input missing query count.");
+            sc.close();
+            return;
+        }
+
+        int queryCount = sc.nextInt();
+        List<long[]> queries = new ArrayList<>(queryCount);
+
+        for (int i = 0; i < queryCount; i++) {
+            if (!sc.hasNextLong()) {
+                System.err.println("Missing source for query " + i);
+                break;
+            }
+            long s = sc.nextLong();
+            if (!sc.hasNextLong()) {
+                System.err.println("Missing target for query " + i);
+                break;
+            }
+            long t = sc.nextLong();
+            queries.add(new long[] { s, t });
+        }
+
         sc.close();
-        System.out.println(graph.n + " " + graph.m);
-        System.out.println("Shortest path from 4 to 5 in test.graph is: " + BidirectionalDijkstra.shortestPath(graph, 4, 5));
+
+        for (long[] pair : queries) {
+            long s = pair[0];
+            long t = pair[1];
+            Result<Integer> result = runAlgorithm(algorithm, graph, s, t);
+            System.out.println(s + "," + t + "," + result.result + "," + result.time + "," + result.relaxed);
+        }
+    }
+
+    private static Result<Integer> runAlgorithm(String algorithm, Graph graph, long s, long t) {
+        if (ALG_DIJKSTRA.equals(algorithm)) {
+            return Dijkstra.shortestPath(graph, s, t);
+        }
+        return BidirectionalDijkstra.shortestPath(graph, s, t);
+    }
+
+    private static void printUsage() {
+        System.out.println("Usage: java -cp <classpath> ch.Main <algorithm>\n" +
+                "  <algorithm>: 'dijkstra' or 'bidirectional'\n" +
+                "  stdin must contain the .graph contents followed by:\n" +
+                "    <query_count>\n" +
+                "    <s0> <t0>\n" +
+                "    ...\n" +
+                "    <sq-1> <tq-1>");
     }
 }

@@ -1,6 +1,7 @@
 package ch;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,11 @@ public class Graph {
     }
 
     public List<Edge> getNeighbours(long u) {
-        return this.edges.get(u);
+        List<Edge> neighbours = this.edges.get(u);
+        if (neighbours == null) {
+            return Collections.emptyList();
+        }
+        return neighbours;
     }
 
     public Vertex getVertex(long id) {

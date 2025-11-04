@@ -12,9 +12,13 @@ import ch.Graph.Edge;
  */
 public class BidirectionalDijkstra {
     
-    public static int shortestPath(Graph g, long s, long t){
+    public static Result<Integer> shortestPath(Graph g, long s, long t){
+        long start = System.nanoTime();
+        int relaxed = 0;
+
         if (s==t) {
-            return 0;
+            long end = System.nanoTime();
+            return new Result<Integer>(end-start, 0, 0);
         }
         PriorityQueue<PQElem> ql = new PriorityQueue<>(); //forward search pq
         PriorityQueue<PQElem> qr = new PriorityQueue<>(); //backwards search pq
@@ -34,9 +38,17 @@ public class BidirectionalDijkstra {
         qr.add(new PQElem(0, t));
 
 
-        while ((!ql.isEmpty()) || (!qr.isEmpty())) {
+        // Process both search frontiers until neither can improve the current best path.
+        while (!ql.isEmpty() && !qr.isEmpty()) {
             PQElem left = ql.peek();
             PQElem right = qr.peek();
+
+            if (d != Integer.MAX_VALUE) {
+                long bound = (long) left.key + (long) right.key;
+                if (bound >= d) {
+                    break; // best over both queues cannot beat the current shortest path
+                }
+            }
 
             PriorityQueue<PQElem> qi; //reference to the appropriate queue depending on direction
             HashMap<Long, Integer> di; //reference to the appropriate map depending on direction
@@ -61,16 +73,21 @@ public class BidirectionalDijkstra {
             int distU = min.key;
 
             if (settled.contains(u)) {
-                break; //if this happens, the two searches have met and we stop
+                continue; // vertex already expanded from one of the directions
             }
             settled.add(u);
+            if (dl.containsKey(u) && dr.containsKey(u)) {
+                d = Math.min(d, dl.get(u) + dr.get(u));
+            }
+
             List<Edge> neighbours = g.getNeighbours(u);
 
             if (neighbours==null || neighbours.isEmpty()) {
                 continue;
             }
             //relaxation step
-            for (Graph.Edge e : g.getNeighbours(u)){
+            for (Graph.Edge e : neighbours){
+                relaxed++;
                 long v = e.to;
                 int weight = e.weight;
 
@@ -90,6 +107,7 @@ public class BidirectionalDijkstra {
         if (d==Integer.MAX_VALUE) {
             d=-1;
         }
-        return d;
+        long end = System.nanoTime();
+        return new Result<Integer>(end-start, relaxed, d);
     }
 }
