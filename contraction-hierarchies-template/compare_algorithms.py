@@ -61,6 +61,21 @@ def make_plot(df: pd.DataFrame, output_path: Path) -> None:
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 
+def make_scatterplot(regular_df: pd.DataFrame, bidi_df: pd.DataFrame, output_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.scatter(regular_df["distance"], regular_df["relaxed"],
+               color="tab:blue", label="Dijkstra", alpha=0.6, s=5)
+    ax.scatter(bidi_df["distance"], bidi_df["relaxed"],
+               color="tab:orange", label="Bidirectional", alpha=0.6, s=5)
+    ax.set_xlabel("Distance")
+    ax.set_ylabel("# of relaxed edges")
+    ax.set_title("Distance vs relaxed edges")
+    ax.legend(title="Algorithm")
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+    fig.tight_layout()
+
+    fig.savefig(output_path, dpi=600)
+    plt.close(fig)
 
 def compute_speedup(dijkstra_df: pd.DataFrame, bidirectional_df: pd.DataFrame) -> float:
     merged = dijkstra_df.merge(
@@ -100,6 +115,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("results/runtime_comparison.png"),
         help="Where to write the PNG plot.",
     )
+    parser.add_argument(
+        "--scatter",
+        type=Path,
+        default = Path("results/scatter_plot.png")
+    )
     return parser.parse_args()
 
 
@@ -121,6 +141,7 @@ def main() -> None:
 
     args.table.write_text(build_latex_table(summaries))
     make_plot(combined, args.plot)
+    make_scatterplot(dijkstra_df, bidirectional_df, args.scatter)
 
     speedup = compute_speedup(dijkstra_df, bidirectional_df)
     print(f"Average speed-up (Dijkstra / Bidirectional): {speedup:.2f}x")
