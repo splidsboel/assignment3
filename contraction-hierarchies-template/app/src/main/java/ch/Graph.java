@@ -270,4 +270,92 @@ public class Graph {
         }
         return best;
     }
+
+    /**
+     * Entry point for computing a nested-dissection ordering for the current graph.
+     * The actual work is delegated to {@link #nestedDissection(Set, List)} which operates
+     * purely on vertex identifiers to avoid mutating the graph while preparing CH priorities.
+     */
+    public List<Long> computeNestedDissectionOrder() {
+        Set<Long> allVertices = getVertexIds();
+        List<Long> ordering = new ArrayList<>(allVertices.size());
+        nestedDissection(allVertices, ordering);
+        return ordering;
+    }
+
+    /**
+     * Recursively build the nested-dissection ordering.
+     *
+     * @param subgraphVertices vertices that are still unassigned within the current subproblem
+     * @param ordering accumulator that collects the final permutation (low recursion levels first)
+     *
+     * The intended implementation steps:
+     * 1. Base case: when the subgraph is small enough, append the vertices directly (e.g. using
+     *    plain heuristics such as edge difference) and return.
+     * 2. Separator search: call {@link #findSeparator(Set)} to obtain a small balanced vertex cut.
+     *    This should run a pseudo-diameter style sweep (or coordinate split) and refine it to a
+     *    minimal disconnecting set.
+     * 3. Partitioning: use {@link #splitBySeparator(Set, Set)} to obtain the disconnected regions
+     *    that remain after removing the separator.
+     * 4. Recurse on each region, ensuring that ordering stays local (process every region before
+     *    finally appending the separator).
+     * 5. Append the separator vertices at the end for this recursion level.
+     */
+    private void nestedDissection(Set<Long> subgraphVertices, List<Long> ordering) {
+        // TODO: implement the base case check (e.g. subgraph size <= threshold) and append directly.
+
+        // TODO: run the separator finder and bail out early if it fails (fallback to base-case ordering).
+        Set<Long> separator = findSeparator(subgraphVertices);
+
+        // TODO: partition the subgraph into disconnected regions after removing the separator.
+        List<Set<Long>> regions = splitBySeparator(subgraphVertices, separator);
+
+        // TODO: recurse on each region, passing a defensive copy if needed because recursion
+        //       should never mutate the original graph structure.
+        for (Set<Long> region : regions) {
+            nestedDissection(region, ordering);
+        }
+
+        // TODO: append separator vertices now that all contained regions have been processed.
+        ordering.addAll(separator);
+    }
+
+    /**
+     * Locate an approximate balanced vertex separator for the provided vertex set.
+     *
+     * Implementation outline:
+     * 1. Pick anchor vertices by running two BFS/DFS sweeps to approximate the diameter, or
+     *    alternatively by splitting on the longest coordinate axis.
+     * 2. Grow simultaneous frontiers from the anchors to detect the interface where the subgraph
+     *    balances; store those boundary vertices as an initial separator candidate.
+     * 3. Refine the candidate: remove redundant vertices that do not contribute to the cut and
+     *    optionally swap very high-degree vertices for nearby low-degree alternatives.
+     * 4. Verify that removing the separator disconnects the subgraph in at least two components;
+     *    if it does not, restart with different anchors or enlarge the separator band.
+     *
+     * @param subgraphVertices vertex identifiers in the current recursive block
+     * @return a set of vertices that will become the separator (never null, but may be empty)
+     */
+    private Set<Long> findSeparator(Set<Long> subgraphVertices) {
+        // TODO: implement separator search as described above and return the resulting vertex set.
+        return Collections.emptySet();
+    }
+
+    /**
+     * Given a separator, split the remaining vertices into their connected regions.
+     *
+     * Implementation outline:
+     * 1. Temporarily treat the separator as removed and run BFS/DFS from any unvisited vertex
+     *    to collect its connected component.
+     * 2. Repeat the search until every non-separator vertex is assigned to exactly one region.
+     * 3. Each region returned should be a standalone set to support independent recursion.
+     *
+     * @param subgraphVertices vertices from the current recursive block (includes separator)
+     * @param separator vertices that must be excluded from the regions
+     * @return list of connected vertex sets representing the subgraphs on either side of the separator
+     */
+    private List<Set<Long>> splitBySeparator(Set<Long> subgraphVertices, Set<Long> separator) {
+        // TODO: implement graph traversal that ignores separator vertices and collects connected regions.
+        return Collections.emptyList();
+    }
 }
