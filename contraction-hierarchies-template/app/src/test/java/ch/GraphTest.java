@@ -3,6 +3,7 @@ package ch;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.function.Predicate;
 
 import org.junit.Test;
 
@@ -112,6 +114,111 @@ public class GraphTest {
         }
     }
 
+    @Test
+    public void testShortcutCreatedWhenWitnessPathTooDeep() throws Exception {
+        Graph g = new Graph();
+        long source = 1L;
+        long contracted = 50L;
+        long target = 200L;
+        ensureVertex(g, source);
+        ensureVertex(g, contracted);
+        ensureVertex(g, target);
+
+        g.addUndirectedEdge(source, contracted, 2);
+        g.addUndirectedEdge(contracted, target, 2);
+
+        int hopCap = getMaxWitnessHops();
+        long previous = source;
+        for (int i = 0; i < hopCap; i++) {
+            long intermediate = 1_000L + i;
+            ensureVertex(g, intermediate);
+            g.addUndirectedEdge(previous, intermediate, 0);
+            previous = intermediate;
+        }
+        ensureVertex(g, previous);
+        g.addUndirectedEdge(previous, target, 4);
+
+        Graph.ContractResult result = g.contract(contracted);
+        assertEquals("Contracting should introduce shortcuts when witness exceeds hop cap", 2, result.shortcutsAdded);
+        assertTrue("Shortcut from source to target should exist",
+                hasEdgeMatching(g.getNeighbours(source), e -> e.to == target && e.weight == 4));
+    }
+
+    @Test
+    public void testShortcutSkippedWhenWitnessWithinHopCap() throws Exception {
+        Graph g = new Graph();
+        long source = 10L;
+        long contracted = 60L;
+        long target = 90L;
+        ensureVertex(g, source);
+        ensureVertex(g, contracted);
+        ensureVertex(g, target);
+
+        g.addUndirectedEdge(source, contracted, 2);
+        g.addUndirectedEdge(contracted, target, 2);
+
+        int hopCap = Math.max(1, getMaxWitnessHops() - 1);
+        long previous = source;
+        for (int i = 0; i < hopCap - 1; i++) {
+            long intermediate = 2_000L + i;
+            ensureVertex(g, intermediate);
+            g.addUndirectedEdge(previous, intermediate, 0);
+            previous = intermediate;
+        }
+        g.addUndirectedEdge(previous, target, 4);
+
+        Graph.ContractResult result = g.contract(contracted);
+        assertEquals("Witness within hop cap should block shortcuts", 0, result.shortcutsAdded);
+        assertFalse("No direct shortcut from source to target expected",
+                hasEdgeMatching(g.getNeighbours(source), e -> e.to == target));
+    }
+
+    @Test
+    public void testContractRemovesReferencesToContractedVertex() {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(0, 1));
+        g.addVertex(3, new Graph.Vertex(0, 2));
+
+        g.addUndirectedEdge(1, 2, 3);
+        g.addUndirectedEdge(2, 3, 4);
+
+        g.contract(2);
+
+        assertFalse("Contracted vertex should be removed", g.containsVertex(2));
+        assertFalse("Neighbors of 1 should no longer reference vertex 2",
+                hasEdgeMatching(g.getNeighbours(1), e -> e.to == 2));
+        assertFalse("Neighbors of 3 should no longer reference vertex 2",
+                hasEdgeMatching(g.getNeighbours(3), e -> e.to == 2));
+    }
+
+    @Test
+    public void testImprovedShortcutUpdatesExistingEdge() {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 1));
+        g.addVertex(3, new Graph.Vertex(2, 2));
+
+        g.addUndirectedEdge(1, 2, 5);
+        g.addUndirectedEdge(2, 3, 5);
+        g.addEdge(1, 3, -1, 20);
+        g.addEdge(3, 1, -1, 20);
+
+        Graph.ContractResult result = g.contract(2);
+        assertEquals("Updating dominated shortcuts should not increase edge count", 0, result.shortcutsAdded);
+
+        List<Graph.Edge> fromOne = g.getNeighbours(1);
+        assertNotNull(fromOne);
+        int toThree = 0;
+        for (Graph.Edge edge : fromOne) {
+            if (edge.to == 3) {
+                toThree++;
+                assertEquals("Shortcut weight should be improved in place", 10, edge.weight);
+            }
+        }
+        assertEquals("Only one shortcut to vertex 3 should remain", 1, toThree);
+    }
+
     private static Path resolveTestGraph() {
         Path candidate = Paths.get("test.graph");
         if (Files.exists(candidate)) {
@@ -153,6 +260,30 @@ public class GraphTest {
 
     private static String key(long from, long to) {
         return from + "->" + to;
+    }
+
+    private static int getMaxWitnessHops() throws Exception {
+        Field field = Graph.class.getDeclaredField("MAX_WITNESS_HOPS");
+        field.setAccessible(true);
+        return field.getInt(null);
+    }
+
+    private static void ensureVertex(Graph g, long id) {
+        if (!g.containsVertex(id)) {
+            g.addVertex(id, new Graph.Vertex(0, 0));
+        }
+    }
+
+    private static boolean hasEdgeMatching(List<Graph.Edge> edges, Predicate<Graph.Edge> predicate) {
+        if (edges == null) {
+            return false;
+        }
+        for (Graph.Edge edge : edges) {
+            if (predicate.test(edge)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static class GraphFixture {

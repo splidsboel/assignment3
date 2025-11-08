@@ -2,10 +2,14 @@ package ch;
 
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.Test;
@@ -23,6 +27,17 @@ public class ContractionHierachyTest {
         g.addUndirectedEdge(2, 3, 1);
         g.addUndirectedEdge(3, 4, 1);
         g.addUndirectedEdge(4, 1, 1);
+        return g;
+    }
+
+    private Graph buildVGraph() {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 0));
+        g.addVertex(3, new Graph.Vertex(0, 1));
+
+        g.addUndirectedEdge(1, 2, 1);
+        g.addUndirectedEdge(1, 3, 1);
         return g;
     }
 
@@ -61,8 +76,9 @@ public class ContractionHierachyTest {
 
     @Test
     public void testStoreGraphWritesAugmentedGraph() throws Exception {
-        Graph g = buildCycleGraph();
+        Graph g = buildVGraph();
         ContractionHierachy ch = new ContractionHierachy(g);
+        assertTrue("V graph preprocessing should yield shortcuts", ch.getShortcutCountForTesting() > 0);
 
         Path output = Files.createTempFile("ch-augmented", ".graph");
         try {
@@ -98,5 +114,30 @@ public class ContractionHierachyTest {
         } finally {
             Files.deleteIfExists(output);
         }
+    }
+
+    @Test
+    public void testRecordShortcutsKeepsLightestEntry() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 0));
+
+        ContractionHierachy ch = new ContractionHierachy(g);
+
+        List<Graph.Shortcut> duplicates = Arrays.asList(
+                new Graph.Shortcut(1, 2, 12, 5),
+                new Graph.Shortcut(1, 2, 4, 6));
+
+        Method record = ContractionHierachy.class.getDeclaredMethod("recordShortcuts", List.class);
+        record.setAccessible(true);
+        record.invoke(ch, duplicates);
+
+        Field mapField = ContractionHierachy.class.getDeclaredField("shortcuts");
+        mapField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<?, Graph.Shortcut> shortcutMap = (Map<?, Graph.Shortcut>) mapField.get(ch);
+        assertEquals("Only one shortcut per pair should be stored", 1, shortcutMap.size());
+        Graph.Shortcut entry = shortcutMap.values().iterator().next();
+        assertEquals("Stored weight should be the lightest one", 4, entry.weight);
     }
 }

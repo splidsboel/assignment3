@@ -1,6 +1,5 @@
 package ch;
 
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -61,7 +60,11 @@ public class Graph {
         }
     }
 
-    private static final int SHORTCUT_PAIR_CAP = 4096; // heuristic cap on u-v-w combinations per contraction
+    private static final int SHORTCUT_PAIR_CAP = 2048; // heuristic cap on u-v-w combinations per contraction
+    private static final int MAX_WITNESS_HOPS = 4; // avoid extremely long detours creating cross-country shortcuts
+    private static final int SHORTCUT_NO_CHANGE = 0;
+    private static final int SHORTCUT_IMPROVED = 1;
+    private static final int SHORTCUT_CREATED = 2;
 
     private Map<Long, List<Edge>> edges;
     private Map<Long, Vertex> vertices;
@@ -105,10 +108,6 @@ public class Graph {
         return this.vertices.get(id);
     }
 
-    public int degree(long v) {
-        return this.edges.get(v).size();
-    }
-
     public boolean containsVertex(long id) {
         return this.vertices.containsKey(id);
     }
@@ -139,57 +138,50 @@ public class Graph {
 
     public ContractResult contract(long v) {
         List<Edge> outgoing = this.edges.get(v);
-        List<Edge> outgoingCopy = outgoing == null ? new ArrayList<>() : new ArrayList<>(outgoing);
-
-        // Grab all predecessors but keep edges intact so witness searches see full connectivity.
         List<Edge> predecessors = this.incoming.getOrDefault(v, Collections.emptyList());
-        List<Map.Entry<Long, Integer>> incomingEntries = new ArrayList<>(predecessors.size());
-        for (Edge inEdge : predecessors) {
-            long u = inEdge.to;
-            List<Edge> adj = this.edges.get(u);
-            if (adj == null) {
-                continue;
+
+        ShortcutBatch batch = computeShortcuts(v, predecessors, outgoing);
+        removeIncomingEdges(v, predecessors);
+        removeOutgoingEdges(v, outgoing);
+        if (this.vertices.remove(v) != null) {
+            this.n--;
+        }
+        return new ContractResult(batch.createdCount, batch.shortcuts);
+    }
+
+    private ShortcutBatch computeShortcuts(long v, List<Edge> predecessors, List<Edge> outgoing) {
+        List<Edge> outgoingCandidates = outgoing == null ? Collections.emptyList() : outgoing;
+        if (predecessors.isEmpty() || outgoingCandidates.isEmpty()) {
+            return ShortcutBatch.empty();
+        }
+
+        List<Edge> workIncoming = predecessors;
+        List<Edge> workOutgoing = outgoingCandidates;
+        if ((long) workIncoming.size() * (long) workOutgoing.size() > SHORTCUT_PAIR_CAP) {
+            workIncoming = new ArrayList<>(predecessors);
+            workIncoming.sort(Comparator.comparingInt(e -> e.weight));
+            int maxIncoming = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, workOutgoing.size()));
+            if (workIncoming.size() > maxIncoming) {
+                workIncoming = new ArrayList<>(workIncoming.subList(0, maxIncoming));
             }
-            for (Edge e : adj) {
-                if (e.to == v) {
-                    incomingEntries.add(new AbstractMap.SimpleEntry<>(u, e.weight));
-                }
+
+            workOutgoing = new ArrayList<>(outgoingCandidates);
+            workOutgoing.sort(Comparator.comparingInt(e -> e.weight));
+            int maxOutgoing = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, workIncoming.size()));
+            if (workOutgoing.size() > maxOutgoing) {
+                workOutgoing = new ArrayList<>(workOutgoing.subList(0, maxOutgoing));
             }
         }
 
         int shortcutsAdded = 0;
         List<Shortcut> newShortcuts = new ArrayList<>();
+        for (Edge inEdge : workIncoming) {
+            long u = inEdge.to;
+            int weightUV = inEdge.weight;
 
-        if (!incomingEntries.isEmpty() && !outgoingCopy.isEmpty()) {
-            if ((long) incomingEntries.size() * (long) outgoingCopy.size() > SHORTCUT_PAIR_CAP) {
-                List<Map.Entry<Long, Integer>> trimmedIncoming = new ArrayList<>(incomingEntries);
-                trimmedIncoming.sort(Comparator.comparingInt(Map.Entry::getValue));
-                int maxIncoming = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, outgoingCopy.size()));
-                if (trimmedIncoming.size() > maxIncoming) {
-                    trimmedIncoming = new ArrayList<>(trimmedIncoming.subList(0, maxIncoming));
-                }
-
-                List<Edge> trimmedOutgoing = new ArrayList<>(outgoingCopy);
-                trimmedOutgoing.sort(Comparator.comparingInt(e -> e.weight));
-                int maxOutgoing = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, trimmedIncoming.size()));
-                if (trimmedOutgoing.size() > maxOutgoing) {
-                    trimmedOutgoing = new ArrayList<>(trimmedOutgoing.subList(0, maxOutgoing));
-                }
-
-                incomingEntries = trimmedIncoming;
-                outgoingCopy = trimmedOutgoing;
-            }
-
-            for (Map.Entry<Long, Integer> inEdge : incomingEntries) {
-                long u = inEdge.getKey();
-                int weightUV = inEdge.getValue();
-
-                for (Edge outEdge : outgoingCopy) {
-                    long w = outEdge.to;
-                    if (w == v) {
-                        continue;
-                    }
-                    if (u == w) {
+            for (Edge outEdge : workOutgoing) {
+                long w = outEdge.to;
+                if (w == v || u == w) {
                     continue;
                 }
 
@@ -208,14 +200,21 @@ public class Graph {
                     continue;
                 }
 
-                    addEdge(u, w, v, shortcutWeight);
-                    shortcutsAdded++;
-                    newShortcuts.add(new Shortcut(u, w, shortcutWeight, v));
+                int shortcutState = insertOrImproveShortcut(u, w, v, shortcutWeight);
+                if (shortcutState == SHORTCUT_NO_CHANGE) {
+                    continue;
                 }
+                if (shortcutState == SHORTCUT_CREATED) {
+                    shortcutsAdded++;
+                }
+                newShortcuts.add(new Shortcut(u, w, shortcutWeight, v));
             }
         }
 
-        // Now remove incoming edges that were previously kept for witness searches.
+        return new ShortcutBatch(shortcutsAdded, newShortcuts);
+    }
+
+    private void removeIncomingEdges(long v, List<Edge> predecessors) {
         int removedIncoming = 0;
         for (Edge inEdge : predecessors) {
             long u = inEdge.to;
@@ -236,37 +235,111 @@ public class Graph {
             this.m -= removedIncoming;
         }
         this.incoming.remove(v);
+    }
 
-        // Remove outgoing edges from v and purge incoming mirrors.
-        if (outgoing != null) {
-            this.edges.remove(v);
-            int removedOut = outgoing.size();
-            for (Edge out : outgoing) {
-                List<Edge> inList = this.incoming.get(out.to);
-                if (inList == null) {
-                    continue;
-                }
-                Iterator<Edge> it = inList.iterator();
-                while (it.hasNext()) {
-                    Edge e = it.next();
-                    if (e.to == v) {
-                        it.remove();
-                        break;
-                    }
-                }
-                if (inList.isEmpty()) {
-                    this.incoming.remove(out.to);
+    private void removeOutgoingEdges(long v, List<Edge> outgoing) {
+        if (outgoing == null) {
+            return;
+        }
+        this.edges.remove(v);
+        int removedOut = outgoing.size();
+        for (Edge out : outgoing) {
+            List<Edge> inList = this.incoming.get(out.to);
+            if (inList == null) {
+                continue;
+            }
+            inList.removeIf(edge -> edge.to == v);
+            if (inList.isEmpty()) {
+                this.incoming.remove(out.to);
+            }
+        }
+        this.m -= removedOut;
+    }
+
+    private int insertOrImproveShortcut(long from, long to, long via, int weight) {
+        List<Edge> adj = this.edges.computeIfAbsent(from, k -> new ArrayList<>());
+        Edge bestEdge = null;
+
+        Iterator<Edge> iterator = adj.iterator();
+        while (iterator.hasNext()) {
+            Edge edge = iterator.next();
+            if (edge.to != to) {
+                continue;
+            }
+            if (bestEdge == null || edge.weight < bestEdge.weight) {
+                bestEdge = edge;
+            } else {
+                iterator.remove();
+                this.m--;
+                removeIncomingReference(to, from);
+            }
+        }
+
+        if (bestEdge != null) {
+            if (bestEdge.weight <= weight) {
+                return SHORTCUT_NO_CHANGE;
+            }
+            bestEdge.weight = weight;
+            bestEdge.contracted = via;
+            updateIncomingReference(from, to, weight, via);
+            return SHORTCUT_IMPROVED;
+        }
+
+        Edge edge = new Edge(to, weight, via);
+        adj.add(edge);
+        this.incoming.computeIfAbsent(to, k -> new ArrayList<>()).add(new Edge(from, weight, via));
+        this.m++;
+        return SHORTCUT_CREATED;
+    }
+
+    private void removeIncomingReference(long target, long source) {
+        List<Edge> list = this.incoming.get(target);
+        if (list == null) {
+            return;
+        }
+        list.removeIf(edge -> edge.to == source);
+        if (list.isEmpty()) {
+            this.incoming.remove(target);
+        }
+    }
+
+    private void updateIncomingReference(long source, long target, int weight, long via) {
+        List<Edge> list = this.incoming.get(target);
+        if (list == null) {
+            list = new ArrayList<>();
+            this.incoming.put(target, list);
+        }
+        boolean updated = false;
+        Iterator<Edge> it = list.iterator();
+        while (it.hasNext()) {
+            Edge edge = it.next();
+            if (edge.to == source) {
+                if (!updated) {
+                    edge.weight = weight;
+                    edge.contracted = via;
+                    updated = true;
+                } else {
+                    it.remove();
                 }
             }
-            this.m -= removedOut;
+        }
+        if (!updated) {
+            list.add(new Edge(source, weight, via));
+        }
+    }
+
+    private static final class ShortcutBatch {
+        final int createdCount;
+        final List<Shortcut> shortcuts;
+
+        ShortcutBatch(int createdCount, List<Shortcut> shortcuts) {
+            this.createdCount = createdCount;
+            this.shortcuts = shortcuts;
         }
 
-        if (this.vertices.containsKey(v)) {
-            this.vertices.remove(v);
-            this.n--;
+        static ShortcutBatch empty() {
+            return new ShortcutBatch(0, Collections.emptyList());
         }
-
-        return new ContractResult(shortcutsAdded, newShortcuts);
     }
 
     public int getEdgeDifference(long v) {
@@ -321,13 +394,16 @@ public class Graph {
         }
         PriorityQueue<WitnessNode> pq = new PriorityQueue<>();
         Map<Long, Integer> distances = new HashMap<>();
-        pq.add(new WitnessNode(source, 0));
+        pq.add(new WitnessNode(source, 0, 0));
         distances.put(source, 0);
 
         while (!pq.isEmpty()) {
             WitnessNode node = pq.poll();
             if (node.distance > limit) {
                 break;
+            }
+            if (node.hops > MAX_WITNESS_HOPS) {
+                continue;
             }
             if (node.vertex == target) {
                 return true;
@@ -350,10 +426,14 @@ public class Graph {
                 if (newDist > limit) {
                     continue;
                 }
+                int nextHops = node.hops + 1;
+                if (nextHops > MAX_WITNESS_HOPS) {
+                    continue;
+                }
                 int existing = distances.getOrDefault(next, Integer.MAX_VALUE);
                 if (newDist < existing) {
                     distances.put(next, newDist);
-                    pq.add(new WitnessNode(next, newDist));
+                    pq.add(new WitnessNode(next, newDist, nextHops));
                 }
             }
         }
@@ -363,10 +443,12 @@ public class Graph {
     private static final class WitnessNode implements Comparable<WitnessNode> {
         final long vertex;
         final int distance;
+        final int hops;
 
-        WitnessNode(long vertex, int distance) {
+        WitnessNode(long vertex, int distance, int hops) {
             this.vertex = vertex;
             this.distance = distance;
+            this.hops = hops;
         }
 
         @Override

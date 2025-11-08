@@ -23,9 +23,7 @@ public class ContractionHierachy {
     private final Map<Long, Integer> rank;
     private final Map<Long, Integer> shortcutsPerVertex;
     private final Map<Long, Integer> priorityAtContraction;
-    private final List<Graph.Shortcut> shortcuts;
-
-    private static final boolean HIGH_DIFF_FIRST = false; // flip to true to try max-first ordering
+    private final Map<ShortcutKey, Graph.Shortcut> shortcuts;
 
     private static final class QueueEntry implements Comparable<QueueEntry> {
         final long vertex;
@@ -38,9 +36,7 @@ public class ContractionHierachy {
 
         @Override
         public int compareTo(QueueEntry other) {
-            int cmp = HIGH_DIFF_FIRST
-                    ? Integer.compare(other.priority, this.priority)
-                    : Integer.compare(this.priority, other.priority);
+            int cmp = Integer.compare(this.priority, other.priority);
             if (cmp != 0) {
                 return cmp;
             }
@@ -54,11 +50,12 @@ public class ContractionHierachy {
         }
         this.originalGraph = graph;
         this.workingGraph = graph.copy();
+        System.out.println("Debug flag: Size of workingGraph:" + workingGraph.getVertexIds().size());
         this.contractionOrder = new ArrayList<>();
         this.rank = new HashMap<>();
         this.shortcutsPerVertex = new HashMap<>();
         this.priorityAtContraction = new HashMap<>();
-        this.shortcuts = new ArrayList<>();
+        this.shortcuts = new HashMap<>();
         preprocess();
     }
 
@@ -99,7 +96,7 @@ public class ContractionHierachy {
             rank.put(vertex, contractionOrder.size() - 1);
             shortcutsPerVertex.put(vertex, contractResult.shortcutsAdded);
             priorityAtContraction.put(vertex, currentDiff);
-            shortcuts.addAll(contractResult.shortcuts);
+            recordShortcuts(contractResult.shortcuts);
 
             processed++;
             if (processed >= nextCheckpoint || processed == totalVertices) {
@@ -130,6 +127,10 @@ public class ContractionHierachy {
         return priorityAtContraction.get(vertex);
     }
 
+    int getShortcutCountForTesting() {
+        return shortcuts.size();
+    }
+
     public Result<Integer> query(long s, long t) {
         return BidirectionalDijkstra.shortestPath(originalGraph, s, t);
     }
@@ -153,7 +154,7 @@ public class ContractionHierachy {
             }
         }
 
-        for (Graph.Shortcut shortcut : shortcuts) {
+        for (Graph.Shortcut shortcut : shortcuts.values()) {
             edges.add(new EdgeRecord(shortcut.from, shortcut.to, shortcut.weight, shortcut.via));
         }
 
@@ -176,6 +177,14 @@ public class ContractionHierachy {
         }
     }
 
+    private void recordShortcuts(List<Graph.Shortcut> newShortcuts) {
+        for (Graph.Shortcut shortcut : newShortcuts) {
+            ShortcutKey key = new ShortcutKey(shortcut.from, shortcut.to);
+            shortcuts.merge(key, shortcut,
+                    (existing, candidate) -> existing.weight <= candidate.weight ? existing : candidate);
+        }
+    }
+
     private static final class EdgeRecord {
         final long from;
         final long to;
@@ -187,6 +196,33 @@ public class ContractionHierachy {
             this.to = to;
             this.weight = weight;
             this.via = via;
+        }
+    }
+
+    private static final class ShortcutKey {
+        final long from;
+        final long to;
+
+        ShortcutKey(long from, long to) {
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof ShortcutKey)) {
+                return false;
+            }
+            ShortcutKey other = (ShortcutKey) obj;
+            return this.from == other.from && this.to == other.to;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(from) * 31 + Long.hashCode(to);
         }
     }
 }

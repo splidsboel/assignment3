@@ -27,20 +27,45 @@ class Main {
         long from, to;
         int weight;
 
+        int edgesRead = 0;
         for (int i = 0; i < m; i++) {
+            if (!sc.hasNextLong()) {
+                throw new IllegalStateException("Expected edge " + i + " 'from' value");
+            }
             from = sc.nextLong();
+            if (!sc.hasNextLong()) {
+                throw new IllegalStateException("Expected edge " + i + " 'to' value");
+            }
             to = sc.nextLong();
+            if (!sc.hasNextInt()) {
+                throw new IllegalStateException("Expected edge " + i + " weight");
+            }
             weight = sc.nextInt();
             g.addUndirectedEdge(from, to, weight);
+            edgesRead++;
         }
 
+        if (edgesRead != m) {
+            throw new IllegalStateException(
+                    "Input declared " + m + " edges but only " + edgesRead + " were read");
+        }
+        System.out.println("Debug flag: M: " + g.m + " N: " + g.n);
         return g;
     }
 
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
         var graph = readGraph(sc);
+
+        // // Nested dissection smoke-test (comment out to skip)
+        // long ndStart = System.nanoTime();
+        // var ndOrder = graph.computeNestedDissectionOrder();
+        // long ndTime = System.nanoTime() - ndStart;
+        // System.out.println("Nested dissection vertices: " + ndOrder.size());
+        // System.out.println("Nested dissection time (ns): " + ndTime);
+
         ContractionHierachy ch = new ContractionHierachy(graph);
+
         ch.storeGraph(java.nio.file.Path.of("denmark-augmented.graph"));
         sc.close();
         System.out.println(graph.n + " " + graph.m);
