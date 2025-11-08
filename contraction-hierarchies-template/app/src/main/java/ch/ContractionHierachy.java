@@ -25,6 +25,8 @@ public class ContractionHierachy {
     private final Map<Long, Integer> priorityAtContraction;
     private final List<Graph.Shortcut> shortcuts;
 
+    private static final boolean HIGH_DIFF_FIRST = false; // flip to true to try max-first ordering
+
     private static final class QueueEntry implements Comparable<QueueEntry> {
         final long vertex;
         final int priority;
@@ -36,7 +38,9 @@ public class ContractionHierachy {
 
         @Override
         public int compareTo(QueueEntry other) {
-            int cmp = Integer.compare(this.priority, other.priority);
+            int cmp = HIGH_DIFF_FIRST
+                    ? Integer.compare(other.priority, this.priority)
+                    : Integer.compare(this.priority, other.priority);
             if (cmp != 0) {
                 return cmp;
             }
@@ -66,7 +70,7 @@ public class ContractionHierachy {
             System.out.println("CH preprocessing: no vertices to contract.");
             return;
         }
-        int progressStep = Math.max(1, (int) Math.ceil(totalVertices / 1000.0)); // log roughly every 0.1%
+        int progressStep = Math.max(1, (int) Math.ceil(totalVertices / 10.0)); // log roughly every 0.1%
         int nextCheckpoint = progressStep;
         System.out.printf("CH preprocessing: contracting %,d vertices...%n", totalVertices);
 
