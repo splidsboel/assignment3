@@ -59,57 +59,82 @@ public class ContractionHierachy {
         preprocess();
     }
 
-    private void preprocess() {
-        PriorityQueue<QueueEntry> pq = new PriorityQueue<>();
-        Set<Long> vertices = workingGraph.getVertexIds();
-        int totalVertices = vertices.size();
-        if (totalVertices == 0) {
-            System.out.println("CH preprocessing: no vertices to contract.");
-            return;
-        }
-        int progressStep = Math.max(1, (int) Math.ceil(totalVertices / 10.0)); // log roughly every 0.1%
-        int nextCheckpoint = progressStep;
-        System.out.printf("CH preprocessing: contracting %,d vertices...%n", totalVertices);
 
-        for (long v : vertices) {
-            int diff = workingGraph.getEdgeDifference(v);
-            pq.add(new QueueEntry(v, diff));
-        }
-
-        int processed = 0;
-        while (!pq.isEmpty()) {
-            QueueEntry entry = pq.poll();
-            long vertex = entry.vertex;
-
-            if (!workingGraph.containsVertex(vertex)) {
-                continue;
-            }
-
-            int currentDiff = workingGraph.getEdgeDifference(vertex);
-            if (currentDiff != entry.priority) {
-                pq.add(new QueueEntry(vertex, currentDiff));
-                continue;
-            }
-
-            Graph.ContractResult contractResult = workingGraph.contract(vertex);
-            contractionOrder.add(vertex);
-            rank.put(vertex, contractionOrder.size() - 1);
-            shortcutsPerVertex.put(vertex, contractResult.shortcutsAdded);
-            priorityAtContraction.put(vertex, currentDiff);
-            recordShortcuts(contractResult.shortcuts);
-
-            processed++;
-            if (processed >= nextCheckpoint || processed == totalVertices) {
-                double percent = processed * 100.0 / totalVertices;
-                System.out.printf("CH preprocessing: %,d/%,d vertices processed (%.1f%%)%n",
-                        processed, totalVertices, percent);
-                while (nextCheckpoint <= processed) {
-                    nextCheckpoint += progressStep;
-                }
-            }
-        }
-        System.out.println("CH preprocessing: completed.");
+private void preprocess() {
+    // Build a snapshot of vertices from the working graph
+    Set<Long> vertices = workingGraph.getVertexIds();
+    final int totalVertices = vertices.size();
+    if (totalVertices == 0) {
+        System.out.println("CH preprocessing: no vertices to contract.");
+        return;
     }
+
+    System.out.printf("CH preprocessing: contracting %,d vertices...%n", totalVertices);
+
+    // 1) Initial PQ of (vertex, edge-difference)
+    PriorityQueue<QueueEntry> pq = new PriorityQueue<>();
+    for (long v : vertices) {
+        pq.add(new QueueEntry(v, workingGraph.getEdgeDifference(v)));
+    }
+
+    // Rank counter (0..n-1). Using an explicit counter avoids off-by-ones.
+    int nextRank = 0;
+    int processed = 0;
+
+    // Optional: progress logging
+    final int progressStep = Math.max(1, totalVertices / 10);
+    int nextCheckpoint = progressStep;
+
+    // 2) Main loop with LAZY UPDATE: re-evaluate the top before contraction
+    while (!pq.isEmpty()) {
+        QueueEntry top = pq.poll();
+        long v = top.vertex;
+
+        // Vertex might already be contracted (removed) -> skip
+        if (!workingGraph.containsVertex(v)) {
+            continue;
+        }
+
+        // Lazy re-evaluation of edge difference BEFORE contracting
+        int freshDiff = workingGraph.getEdgeDifference(v);
+        if (freshDiff != top.priority) {
+            // Priority became stale -> reinsert with the new priority, skip contracting this round
+            pq.add(new QueueEntry(v, freshDiff));
+            continue;
+        }
+
+        // 3) Contract v now that we confirmed its current priority
+        Graph.ContractResult cr = workingGraph.contract(v);
+
+        // 4) Assign rank immediately and uniquely
+        rank.put(v, nextRank++);
+
+        // Bookkeeping (optional; you already have these maps):
+        contractionOrder.add(v);
+        shortcutsPerVertex.put(v, cr.shortcutsAdded);
+        priorityAtContraction.put(v, freshDiff);
+        recordShortcuts(cr.shortcuts);
+
+        processed++;
+        if (processed >= nextCheckpoint || processed == totalVertices) {
+            double percent = (processed * 100.0) / totalVertices;
+            System.out.printf("  %,d/%,d (%.1f%%) contracted%n", processed, totalVertices, percent);
+            nextCheckpoint += progressStep;
+        }
+    }
+
+    // 5) Strong postconditions: every vertex must have a rank in [0..n-1]
+    if (nextRank != totalVertices) {
+        throw new IllegalStateException(
+            "Preprocess finished but not all vertices were ranked: nextRank=" + nextRank +
+            " totalVertices=" + totalVertices);
+    }
+    if (rank.size() != totalVertices) {
+        throw new IllegalStateException(
+            "Rank map size mismatch: " + rank.size() + " vs total=" + totalVertices);
+    }
+}
+
 
     public List<Long> getContractionOrder() {
         return Collections.unmodifiableList(contractionOrder);

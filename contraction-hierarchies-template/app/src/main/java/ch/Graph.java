@@ -473,4 +473,8 @@ public class Graph {
         return best;
     }
 
+    public List<Edge> getIncoming(long v) {
+    return this.incoming.get(v);
+}
+
 }

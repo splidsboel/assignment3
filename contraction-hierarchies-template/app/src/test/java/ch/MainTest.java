@@ -22,7 +22,7 @@ public class MainTest {
     }
 
     private static Graph invokeReadGraph(String data) throws Exception {
-        Method method = Main.class.getDeclaredMethod("readGraph", Scanner.class);
+        Method method = Main.class.getDeclaredMethod("readOriginalGraph", Scanner.class);
         method.setAccessible(true);
         try (Scanner sc = new Scanner(data)) {
             try {
