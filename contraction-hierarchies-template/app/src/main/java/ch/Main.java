@@ -19,6 +19,8 @@ class Main {
             runQuery(Path.of(args[1]), Long.parseLong(args[2]), Long.parseLong(args[3]));
         } else if (args.length == 4 && "query-raw".equalsIgnoreCase(args[0])) {
             runRawQuery(Path.of(args[1]), Long.parseLong(args[2]), Long.parseLong(args[3]));
+        } else if (args.length == 4 && "query-dijkstra".equalsIgnoreCase(args[0])) {
+            runDijkstraQuery(Path.of(args[1]), Long.parseLong(args[2]), Long.parseLong(args[3]));
         } else {
             printUsage();
         }
@@ -74,6 +76,12 @@ class Main {
     private static void runRawQuery(Path originalGraph, long source, long target) throws IOException {
         Graph graph = readOriginalGraph(originalGraph);
         Result<Integer> result = BidirectionalDijkstra.shortestPath(graph, source, target);
+        System.out.printf("distance=%d relaxed=%d time(ns)=%d%n", result.result, result.relaxed, result.time);
+    }
+
+    private static void runDijkstraQuery(Path originalGraph, long source, long target) throws IOException {
+        Graph graph = readOriginalGraph(originalGraph);
+        Result<Integer> result = Dijkstra.shortestPath(graph, source, target);
         System.out.printf("distance=%d relaxed=%d time(ns)=%d%n", result.result, result.relaxed, result.time);
     }
 
@@ -150,6 +158,7 @@ class Main {
         System.out.println("  preprocess <output.graph>   # reads original graph from stdin");
         System.out.println("  query <augmented.graph> <source> <target>");
         System.out.println("  query-raw <graph> <source> <target>   # run queries on unprocessed graph files");
+        System.out.println("  query-dijkstra <graph> <source> <target>   # run plain Dijkstra on unprocessed graphs");
     }
 
     private static final class LoadedGraph {
