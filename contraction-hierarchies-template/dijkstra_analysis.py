@@ -186,11 +186,15 @@ def run_analysis(
         target_dir = output_dir / subdir
         target_dir.mkdir(parents=True, exist_ok=True)
         rows: List[Tuple[int, int, int, int, int]] = []
-        for source, target in pairs:
+        for index, (source, target) in enumerate(pairs, start=1):
             distance, time_ns, relaxed = run_java_query(
                 classpath, mode, graph_file, source, target
             )
             rows.append((source, target, distance, time_ns, relaxed))
+            print(
+                f"[{algorithm}] completed pair {index}/{len(pairs)}: "
+                f"{source}->{target}, distance={distance}, time_ns={time_ns}"
+            )
         write_csv(target_dir / filename, rows)
 
 
