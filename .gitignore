@@ -31,3 +31,9 @@ bin/
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+# python artifacts
+__pycache__/
+*.py[cod]
+
+denmark.graph

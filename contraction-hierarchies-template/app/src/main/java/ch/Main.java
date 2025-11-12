@@ -5,6 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Scanner;
 
 class Main {
@@ -20,6 +23,12 @@ class Main {
             printUsage();
         }
     }
+    private static final String ALG_DIJKSTRA = "dijkstra";
+    private static final String ALG_BIDIRECTIONAL = "bidirectional";
+
+    private static Graph readGraph(Scanner sc) {
+        int n = sc.nextInt();
+        int m = sc.nextInt();
 
     private static void runPreprocess(Path output) throws IOException {
         try (Scanner sc = new Scanner(System.in)) {
@@ -42,12 +51,7 @@ class Main {
         System.out.printf("distance=%d relaxed=%d time(ns)=%d%n", result.result, result.relaxed, result.time);
     }
 
-    private static Graph readOriginalGraph(Path path) throws IOException {
-        try (Scanner sc = new Scanner(Files.newBufferedReader(path))) {
-            return readOriginalGraph(sc);
-        }
-    }
-
+ 
     private static Graph readOriginalGraph(Scanner sc) {
         int n = sc.nextInt();
         int m = sc.nextInt();
