@@ -50,15 +50,17 @@ Example comparing the two regular-graph variants:
 
 ```
 python compare_algorithms.py \
-  --dijkstra results/regular/dijkstra_results.csv \
-  --bidirectional results/regular/bidirectional_results.csv \
+  --first results/regular/dijkstra_results.csv \
+  --first-label "Regular Dijkstra" \
+  --second results/regular/bidirectional_results.csv \
+  --second-label "Regular Bidirectional" \
   --table results/regular/comparison_table.tex \
   --plot results/regular/runtime_comparison.png \
   --scatter results/regular/scatter_plot.png
 ```
 
-Swap `--bidirectional` for `results/augmented/bidirectional_results.csv` to
-contrast regular vs. CH bidirectional searches.
+To contrast regular vs. CH bidirectional searches, point `--second` at
+`results/augmented/bidirectional_results.csv` and update the label accordingly.
 
 The script prints the mean speed-up and generates:
 

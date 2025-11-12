@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def load_results(path: Path, algorithm: str) -> pd.DataFrame:
+def load_results(path: Path, label: str) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Results file not found: {path}")
     df = pd.read_csv(path)
@@ -16,7 +16,7 @@ def load_results(path: Path, algorithm: str) -> pd.DataFrame:
     if set(df.columns) != expected_cols:
         raise ValueError(f"Unexpected columns in {path}: {df.columns.tolist()}")
     df = df.copy()
-    df["algorithm"] = algorithm
+    df["algorithm"] = label
     df["time_ms"] = df["time_ns"] / 1e6
     return df
 
@@ -61,29 +61,48 @@ def make_plot(df: pd.DataFrame, output_path: Path) -> None:
     fig.savefig(output_path, dpi=200)
     plt.close(fig)
 
-def make_scatterplot(regular_df: pd.DataFrame, bidi_df: pd.DataFrame, output_path: Path) -> None:
+def make_scatterplot(
+    first_df: pd.DataFrame,
+    second_df: pd.DataFrame,
+    first_label: str,
+    second_label: str,
+    output_path: Path,
+) -> None:
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.scatter(regular_df["distance"], regular_df["relaxed"],
-               color="tab:blue", label="Dijkstra", alpha=0.6, s=5)
-    ax.scatter(bidi_df["distance"], bidi_df["relaxed"],
-               color="tab:orange", label="Bidirectional", alpha=0.6, s=5)
+    ax.scatter(
+        first_df["distance"],
+        first_df["relaxed"],
+        color="tab:blue",
+        label=first_label,
+        alpha=0.6,
+        s=5,
+    )
+    ax.scatter(
+        second_df["distance"],
+        second_df["relaxed"],
+        color="tab:orange",
+        label=second_label,
+        alpha=0.6,
+        s=5,
+    )
     ax.set_xlabel("Distance")
     ax.set_ylabel("# of relaxed edges")
     ax.set_title("Distance vs relaxed edges")
     ax.legend(title="Algorithm")
+    ax.set_yscale("log")
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
     fig.tight_layout()
 
     fig.savefig(output_path, dpi=600)
     plt.close(fig)
 
-def compute_speedup(dijkstra_df: pd.DataFrame, bidirectional_df: pd.DataFrame) -> float:
-    merged = dijkstra_df.merge(
-        bidirectional_df,
+def compute_speedup(first_df: pd.DataFrame, second_df: pd.DataFrame) -> float:
+    merged = first_df.merge(
+        second_df,
         on=["source", "target"],
-        suffixes=("_dijkstra", "_bidirectional"),
+        suffixes=("_first", "_second"),
     )
-    ratio = merged["time_ms_dijkstra"] / merged["time_ms_bidirectional"]
+    ratio = merged["time_ms_first"] / merged["time_ms_second"]
     return ratio.mean()
 
 
@@ -92,16 +111,26 @@ def parse_args() -> argparse.Namespace:
         description="Compare Dijkstra variants and generate summary artefacts."
     )
     parser.add_argument(
-        "--dijkstra",
+        "--first",
         type=Path,
         default=Path("results/dijkstra_results.csv"),
-        help="Path to CSV with standard Dijkstra results.",
+        help="Path to CSV for the first algorithm (e.g. regular Dijkstra).",
     )
     parser.add_argument(
-        "--bidirectional",
+        "--first-label",
+        default="Algorithm A",
+        help="Label for the first dataset in plots/tables.",
+    )
+    parser.add_argument(
+        "--second",
         type=Path,
         default=Path("results/bidirectional_results.csv"),
-        help="Path to CSV with bidirectional Dijkstra results.",
+        help="Path to CSV for the second algorithm (e.g. bidirectional).",
+    )
+    parser.add_argument(
+        "--second-label",
+        default="Algorithm B",
+        help="Label for the second dataset in plots/tables.",
     )
     parser.add_argument(
         "--table",
@@ -126,14 +155,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    dijkstra_df = load_results(args.dijkstra, "Dijkstra")
-    bidirectional_df = load_results(args.bidirectional, "Bidirectional")
+    first_df = load_results(args.first, args.first_label)
+    second_df = load_results(args.second, args.second_label)
 
-    combined = pd.concat([dijkstra_df, bidirectional_df], ignore_index=True)
+    combined = pd.concat([first_df, second_df], ignore_index=True)
 
     summaries = [
-        ("Dijkstra", summarise(dijkstra_df)),
-        ("Bidirectional", summarise(bidirectional_df)),
+        (args.first_label, summarise(first_df)),
+        (args.second_label, summarise(second_df)),
     ]
 
     args.table.parent.mkdir(parents=True, exist_ok=True)
@@ -141,10 +170,22 @@ def main() -> None:
 
     args.table.write_text(build_latex_table(summaries))
     make_plot(combined, args.plot)
-    make_scatterplot(dijkstra_df, bidirectional_df, args.scatter)
+    make_scatterplot(
+        first_df,
+        second_df,
+        args.first_label,
+        args.second_label,
+        args.scatter,
+    )
 
-    speedup = compute_speedup(dijkstra_df, bidirectional_df)
-    print(f"Average speed-up (Dijkstra / Bidirectional): {speedup:.2f}x")
+    speedup = compute_speedup(first_df, second_df)
+    print(
+        "Average speed-up ({first} / {second}): {ratio:.2f}x".format(
+            first=args.first_label,
+            second=args.second_label,
+            ratio=speedup,
+        )
+    )
     print(f"LaTeX table written to: {args.table}")
     print(f"Runtime plot written to: {args.plot}")
 
