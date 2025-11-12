@@ -30,6 +30,32 @@ class Main {
         int n = sc.nextInt();
         int m = sc.nextInt();
 
+        Graph g = new Graph();
+
+        long id;
+        float x, y;
+
+        for (int i = 0; i < n; i++) {
+            id = sc.nextLong();
+            x = Float.parseFloat(sc.next());
+            y = Float.parseFloat(sc.next());
+
+            g.addVertex(id, new Graph.Vertex(x, y));
+        }
+
+        long from, to;
+        int weight;
+
+        for (int i = 0; i < m; i++) {
+            from = sc.nextLong();
+            to = sc.nextLong();
+            weight = sc.nextInt();
+            g.addUndirectedEdge(from, to, weight);
+        }
+
+        return g;
+    }
+    
     private static void runPreprocess(Path output) throws IOException {
         try (Scanner sc = new Scanner(System.in)) {
             Graph graph = readOriginalGraph(sc);
@@ -44,13 +70,19 @@ class Main {
         Result<Integer> result = BidirectionalDijkstra.shortestPath(loaded.graph, source, target, loaded.ranks);
         System.out.printf("distance=%d relaxed=%d time(ns)=%d%n", result.result, result.relaxed, result.time);
     }
-
+    
     private static void runRawQuery(Path originalGraph, long source, long target) throws IOException {
         Graph graph = readOriginalGraph(originalGraph);
         Result<Integer> result = BidirectionalDijkstra.shortestPath(graph, source, target);
         System.out.printf("distance=%d relaxed=%d time(ns)=%d%n", result.result, result.relaxed, result.time);
     }
 
+    private static Graph readOriginalGraph(Path path) throws IOException {
+        try (Scanner sc = new Scanner(Files.newBufferedReader(path))) {
+            return readOriginalGraph(sc);
+        }
+    }
+ 
  
     private static Graph readOriginalGraph(Scanner sc) {
         int n = sc.nextInt();
