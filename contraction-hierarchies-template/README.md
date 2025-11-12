@@ -24,5 +24,13 @@ We have implemented basic functionality such as graph reading, a graph data stru
 To solve the assignment, you probably need to update the API by changing method signatures to incorporate additional functionality.
 
 
+## Running the code 
 
+### Preprocess
+java -jar app/build/libs/app.jar preprocess <new graph name> < <input graph>
 
+### Query on non-CH graph
+java -jar app/build/libs/app.jar query-raw <input-graph> <source> <target>     
+
+### Query on CH graph
+java -jar app/build/libs/app.jar query <input graph> <source> <target>   
