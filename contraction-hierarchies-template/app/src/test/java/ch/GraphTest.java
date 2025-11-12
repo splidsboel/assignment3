@@ -144,34 +144,34 @@ public class GraphTest {
                 hasEdgeMatching(g.getNeighbours(source), e -> e.to == target && e.weight == 4));
     }
 
-    // @Test
-    // public void testShortcutSkippedWhenWitnessWithinHopCap() throws Exception {
-    //     Graph g = new Graph();
-    //     long source = 10L;
-    //     long contracted = 60L;
-    //     long target = 90L;
-    //     ensureVertex(g, source);
-    //     ensureVertex(g, contracted);
-    //     ensureVertex(g, target);
+    @Test
+    public void testShortcutSkippedWhenWitnessWithinHopCap() throws Exception {
+        Graph g = new Graph();
+        long source = 10L;
+        long contracted = 60L;
+        long target = 90L;
+        ensureVertex(g, source);
+        ensureVertex(g, contracted);
+        ensureVertex(g, target);
 
-    //     g.addUndirectedEdge(source, contracted, 2);
-    //     g.addUndirectedEdge(contracted, target, 2);
+        g.addUndirectedEdge(source, contracted, 2);
+        g.addUndirectedEdge(contracted, target, 2);
 
-    //     int hopCap = Math.max(1, getMaxWitnessHops() - 1);
-    //     long previous = source;
-    //     for (int i = 0; i < hopCap - 1; i++) {
-    //         long intermediate = 2_000L + i;
-    //         ensureVertex(g, intermediate);
-    //         g.addUndirectedEdge(previous, intermediate, 0);
-    //         previous = intermediate;
-    //     }
-    //     g.addUndirectedEdge(previous, target, 4);
+        int hopCap = Math.max(1, getMaxWitnessHops() - 1);
+        long previous = source;
+        for (int i = 0; i < hopCap - 1; i++) {
+            long intermediate = 2_000L + i;
+            ensureVertex(g, intermediate);
+            g.addUndirectedEdge(previous, intermediate, 0);
+            previous = intermediate;
+        }
+        g.addUndirectedEdge(previous, target, 4);
 
-    //     Graph.ContractResult result = g.contract(contracted);
-    //     assertEquals("Witness within hop cap should block shortcuts", 0, result.shortcutsAdded);
-    //     assertFalse("No direct shortcut from source to target expected",
-    //             hasEdgeMatching(g.getNeighbours(source), e -> e.to == target));
-    // }
+        Graph.ContractResult result = g.contract(contracted);
+        assertEquals("Witness within hop cap should block shortcuts", 0, result.shortcutsAdded);
+        assertFalse("No direct shortcut from source to target expected",
+                hasEdgeMatching(g.getNeighbours(source), e -> e.to == target));
+    }
 
     @Test
     public void testContractRemovesReferencesToContractedVertex() {
@@ -217,6 +217,119 @@ public class GraphTest {
             }
         }
         assertEquals("Only one shortcut to vertex 3 should remain", 1, toThree);
+    }
+
+    @Test
+    public void testRemoveIncomingReferenceClearsEntry() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 0));
+        g.addEdge(1, 2, -1, 7);
+        assertNotNull("Incoming list should exist before removal", g.getIncoming(2));
+
+        java.lang.reflect.Method remover =
+                Graph.class.getDeclaredMethod("removeIncomingReference", long.class, long.class);
+        remover.setAccessible(true);
+        remover.invoke(g, 2L, 1L);
+
+        assertNull("Incoming list should be removed after last reference is deleted", g.getIncoming(2));
+    }
+
+    @Test
+    public void testInsertOrImproveShortcutCreatesNewEdge() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 0));
+
+        java.lang.reflect.Method method =
+                Graph.class.getDeclaredMethod("insertOrImproveShortcut", long.class, long.class, long.class, int.class);
+        method.setAccessible(true);
+        Object result = method.invoke(g, 1L, 2L, 42L, 7);
+
+        assertEquals("Shortcut creation should be reported", 2, ((Integer) result).intValue());
+        List<Graph.Edge> outgoing = g.getNeighbours(1);
+        assertEquals("New shortcut edge should be added", 1, outgoing.size());
+        assertEquals("New edge should record via vertex", 42L, outgoing.get(0).contracted);
+
+        List<Graph.Edge> incoming = g.getIncoming(2);
+        assertNotNull("Incoming list should be created when absent", incoming);
+        assertEquals("Incoming list should contain the new shortcut", 1, incoming.size());
+    }
+
+    @Test
+    public void testUpdateIncomingReferenceCreatesListWhenMissing() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(5, new Graph.Vertex(0, 0));
+        g.addVertex(6, new Graph.Vertex(0, 1));
+
+        java.lang.reflect.Method method =
+                Graph.class.getDeclaredMethod("updateIncomingReference", long.class, long.class, int.class, long.class);
+        method.setAccessible(true);
+        method.invoke(g, 5L, 6L, 9, 100L);
+
+        List<Graph.Edge> incoming = g.getIncoming(6);
+        assertNotNull("Incoming list should be created if absent", incoming);
+        assertEquals("Incoming list should contain exactly one entry", 1, incoming.size());
+        Graph.Edge edge = incoming.get(0);
+        assertEquals("New entry should reference source vertex", 5L, edge.to);
+        assertEquals("Weight should match update", 9, edge.weight);
+        assertEquals("Via field should be set", 100L, edge.contracted);
+    }
+
+    @Test
+    public void testHasWitnessPathSkipsForbiddenVertex() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(1, new Graph.Vertex(0, 0));
+        g.addVertex(2, new Graph.Vertex(1, 0));
+        g.addVertex(3, new Graph.Vertex(2, 0));
+        g.addEdge(1, 2, -1, 1);
+        g.addEdge(2, 3, -1, 1);
+
+        java.lang.reflect.Method witness =
+                Graph.class.getDeclaredMethod("hasWitnessPath", long.class, long.class, long.class, int.class);
+        witness.setAccessible(true);
+        boolean reached = (boolean) witness.invoke(g, 1L, 3L, 2L, 10);
+
+        assertFalse("Forbidden vertex should prevent reaching the target", reached);
+    }
+
+    @Test
+    public void testHasWitnessPathSkipsPathsOverLimit() throws Exception {
+        Graph g = new Graph();
+        g.addVertex(10, new Graph.Vertex(0, 0));
+        g.addVertex(20, new Graph.Vertex(1, 0));
+        g.addVertex(30, new Graph.Vertex(2, 0));
+        g.addEdge(10, 20, -1, 10);
+        g.addEdge(20, 30, -1, 1);
+
+        java.lang.reflect.Method witness =
+                Graph.class.getDeclaredMethod("hasWitnessPath", long.class, long.class, long.class, int.class);
+        witness.setAccessible(true);
+        boolean reached = (boolean) witness.invoke(g, 10L, 30L, -1L, 5);
+
+        assertFalse("Paths exceeding the weight limit should be ignored", reached);
+    }
+
+    @Test
+    public void testHasWitnessPathSkipsWhenHopCapExceeded() throws Exception {
+        Graph g = new Graph();
+        long start = 100L;
+        long prev = start;
+        g.addVertex(prev, new Graph.Vertex(0, 0));
+        for (int i = 1; i <= 6; i++) {
+            long next = start + i;
+            g.addVertex(next, new Graph.Vertex(i, 0));
+            g.addEdge(prev, next, -1, 1);
+            prev = next;
+        }
+        long target = prev;
+
+        java.lang.reflect.Method witness =
+                Graph.class.getDeclaredMethod("hasWitnessPath", long.class, long.class, long.class, int.class);
+        witness.setAccessible(true);
+        boolean reached = (boolean) witness.invoke(g, start, target, -1L, 100);
+
+        assertFalse("Paths requiring more hops than allowed should be ignored", reached);
     }
 
     private static Path resolveTestGraph() {

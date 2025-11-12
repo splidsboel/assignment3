@@ -60,7 +60,6 @@ public class Graph {
         }
     }
 
-    private static final int SHORTCUT_PAIR_CAP = 2048; // heuristic cap on u-v-w combinations per contraction
     private static final int MAX_WITNESS_HOPS = 4; // avoid extremely long detours creating cross-country shortcuts
     private static final int SHORTCUT_NO_CHANGE = 0;
     private static final int SHORTCUT_IMPROVED = 1;
@@ -155,31 +154,13 @@ public class Graph {
             return ShortcutBatch.empty();
         }
 
-        List<Edge> workIncoming = predecessors;
-        List<Edge> workOutgoing = outgoingCandidates;
-        if ((long) workIncoming.size() * (long) workOutgoing.size() > SHORTCUT_PAIR_CAP) {
-            workIncoming = new ArrayList<>(predecessors);
-            workIncoming.sort(Comparator.comparingInt(e -> e.weight));
-            int maxIncoming = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, workOutgoing.size()));
-            if (workIncoming.size() > maxIncoming) {
-                workIncoming = new ArrayList<>(workIncoming.subList(0, maxIncoming));
-            }
-
-            workOutgoing = new ArrayList<>(outgoingCandidates);
-            workOutgoing.sort(Comparator.comparingInt(e -> e.weight));
-            int maxOutgoing = Math.max(1, SHORTCUT_PAIR_CAP / Math.max(1, workIncoming.size()));
-            if (workOutgoing.size() > maxOutgoing) {
-                workOutgoing = new ArrayList<>(workOutgoing.subList(0, maxOutgoing));
-            }
-        }
-
         int shortcutsAdded = 0;
         List<Shortcut> newShortcuts = new ArrayList<>();
-        for (Edge inEdge : workIncoming) {
+        for (Edge inEdge : predecessors) {
             long u = inEdge.to;
             int weightUV = inEdge.weight;
 
-            for (Edge outEdge : workOutgoing) {
+            for (Edge outEdge : outgoingCandidates) {
                 long w = outEdge.to;
                 if (w == v || u == w) {
                     continue;
