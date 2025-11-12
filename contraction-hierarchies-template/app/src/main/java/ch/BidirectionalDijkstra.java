@@ -73,21 +73,6 @@ public class BidirectionalDijkstra {
             if (forward && dr.containsKey(u)) best = Math.min(best, du + dr.get(u));
             if (!forward && dl.containsKey(u)) best = Math.min(best, du + dl.get(u));
 
-            // ---- STALL ON DEMAND ----
-boolean stall;
-if (forward) {
-    stall = shouldStallForward(g, u, du, dl, dr, ranks);
-} else {
-    stall = shouldStallBackward(g, u, du, dl, dr, ranks);
-}
-
-if (stall) {
-    if (DEBUG) {
-        System.out.printf("[%s] STALL u=%d du=%d%n", forward ? "FWD" : "BWD", u, du);
-    }
-    continue; // skip relaxing neighbours
-}
-
             // Use outgoing for forward, incoming for backward
             List<Edge> neighbours = forward ? g.getNeighbours(u) : g.getIncoming(u);
             if (neighbours == null || neighbours.isEmpty()) {
@@ -166,61 +151,4 @@ if (stall) {
         }
         return new Result<>(end - start, relaxed, best);
     }
-    private static boolean shouldStallForward(Graph g,
-                                          long u,
-                                          int du,
-                                          HashMap<Long,Integer> dl,
-                                          HashMap<Long,Integer> dr,
-                                          java.util.Map<Long,Integer> ranks) {
-
-    // Stall test: look for a neighbor v with rank(v) > rank(u) and
-    // dl(v) + w(v→u) < dl(u).   That means better path exists via v.
-    var incoming = g.getIncoming(u);
-    if (incoming == null) return false;
-
-    Integer rankU = (ranks == null) ? null : ranks.get(u);
-
-    for (Graph.Edge e : incoming) {
-        long v = e.to;
-        Integer dv = dl.get(v);
-        if (dv == null) continue;
-
-        if (ranks != null && rankU != null) {
-            Integer rankV = ranks.get(v);
-            if (rankV != null && rankV <= rankU) continue; // upward only
-        }
-
-        if (dv + e.weight < du) return true;
-    }
-    return false;
-}
-
-private static boolean shouldStallBackward(Graph g,
-                                           long u,
-                                           int du,
-                                           HashMap<Long,Integer> dl,
-                                           HashMap<Long,Integer> dr,
-                                           java.util.Map<Long,Integer> ranks) {
-
-    // Stall test on reverse graph: check outgoing edges of u
-    var outgoing = g.getNeighbours(u);
-    if (outgoing == null) return false;
-
-    Integer rankU = (ranks == null) ? null : ranks.get(u);
-
-    for (Graph.Edge e : outgoing) {
-        long v = e.to;
-        Integer dv = dr.get(v);
-        if (dv == null) continue;
-
-        if (ranks != null && rankU != null) {
-            Integer rankV = ranks.get(v);
-            if (rankV != null && rankV <= rankU) continue; // upward only
-        }
-
-        if (dv + e.weight < du) return true;
-    }
-    return false;
-}
-
 }

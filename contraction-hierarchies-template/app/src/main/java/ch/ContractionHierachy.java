@@ -189,8 +189,9 @@ private void preprocess() {
                 .thenComparingInt(e -> e.weight)
                 .thenComparingLong(e -> e.via));
 
+        int edgeCount = edges.size();
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath, StandardCharsets.UTF_8)) {
-            writer.write(String.format(Locale.US, "%d %d%n", vertexIds.size(), edges.size()));
+            writer.write(String.format(Locale.US, "%d %d%n", vertexIds.size(), edgeCount));
             for (long id : vertexIds) {
                 Graph.Vertex vertex = originalGraph.getVertex(id);
                 int vertexRank = rank.getOrDefault(id, -1);

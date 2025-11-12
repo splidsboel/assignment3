@@ -6,3 +6,12 @@ java -jar app/build/libs/app.jar query-raw denmark.graph 1125179421 1126400131
 distance=8309 relaxed=1208019 time(ns)=478797667
 
 afstand er ens, relaxed vertices er markant lavere, og tiden er langt hurtigere- (godt tegn)
+
+
+augmented:
+2.356.307 edges
+originale:
+587643
+
+new edges:
+2.356.307 - 587643 = 1.768.664 new edges.
